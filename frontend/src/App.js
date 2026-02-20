@@ -1,8 +1,5 @@
-import React from 'react';
 import LiDARContourExtractor from './LiDARContourExtractor';
 
-function App() {
+export default function App() {
   return <LiDARContourExtractor />;
 }
-
-export default App;
