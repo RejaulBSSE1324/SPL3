@@ -18,7 +18,12 @@ from pipeline import run_pipeline
 
 # ── App setup ────────────────────────────────────────────────────────────────
 app = Flask(__name__)
-CORS(app)
+#CORS(app)
+
+CORS(app, origins=[                                 
+    "http://localhost:3000",
+    "https://lidar-frontend-zeta.vercel.app"
+])
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
