@@ -9,8 +9,25 @@ import { ProcessPanel }            from './components/panels/ProcessPanel';
 import { BuildingSelectorPanel, BuildingStatsPanel } from './components/panels/BuildingPanels';
 import { ExportPanel }             from './components/panels/ExportPanel';
 import { VisualizationPanel }      from './components/VisualizationPanel';
+import { ThreeDPanel }             from './components/ThreeDPanel';
 import { AlgorithmCard }           from './components/AlgorithmCard';
 import { ErrorToast }              from './components/ui/ErrorToast';
+
+// ── Tab button style ────────────────────────────────────────────────────────
+const tabStyle = (active) => ({
+  padding: '8px 20px',
+  border: 'none',
+  borderRadius: 8,
+  cursor: 'pointer',
+  fontWeight: 700,
+  fontSize: 13,
+  letterSpacing: 0.5,
+  fontFamily: "'Courier New', monospace",
+  transition: 'all 0.2s',
+  background: active ? '#1d4ed8' : 'rgba(30,58,95,0.4)',
+  color:      active ? '#fff'    : '#64748b',
+  borderBottom: active ? '2px solid #38bdf8' : '2px solid transparent',
+});
 
 export default function LiDARContourExtractor() {
   // ── State ──────────────────────────────────────────────────────────────
@@ -18,7 +35,8 @@ export default function LiDARContourExtractor() {
   const [points,           setPoints]           = useState([]);
   const [results,          setResults]          = useState(null);
   const [selectedBuilding, setSelectedBuilding] = useState(0);
-  const [viewMode,         setViewMode]         = useState('2d');
+  const [viewMode,         setViewMode]         = useState('2d');   // 2D canvas overlay mode
+  const [viewDimension,    setViewDimension]    = useState('2d');   // '2d' | '3d' tab
 
   // ── Refs ───────────────────────────────────────────────────────────────
   const canvasRef     = useRef(null);
@@ -30,20 +48,21 @@ export default function LiDARContourExtractor() {
     uploadFile, processPoints, exportContour,
   } = useApi();
 
-  // ── VisualizationManager init ──────────────────────────────────────────
+  // ── VisualizationManager init (2D) ─────────────────────────────────────
   useEffect(() => {
     if (canvasRef.current && !vizManagerRef.current) {
       vizManagerRef.current = new VisualizationManager(canvasRef.current);
     }
   }, []);
 
-  // ── Re-render on state change ──────────────────────────────────────────
+  // ── Re-render 2D canvas on state change ───────────────────────────────
   useEffect(() => {
+    if (viewDimension !== '2d') return;
     const vm = vizManagerRef.current;
     if (!vm || points.length === 0) return;
     const contour = results?.buildings?.[selectedBuilding]?.contour ?? [];
     vm.render(points, contour, viewMode);
-  }, [points, results, selectedBuilding, viewMode]);
+  }, [points, results, selectedBuilding, viewMode, viewDimension]);
 
   // ── Handlers ───────────────────────────────────────────────────────────
   const handleFileSelected = async (e) => {
@@ -82,6 +101,7 @@ export default function LiDARContourExtractor() {
 
   // ── Derived values ─────────────────────────────────────────────────────
   const currentBuilding = results?.buildings?.[selectedBuilding];
+  const currentContour  = currentBuilding?.contour ?? [];
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -91,7 +111,8 @@ export default function LiDARContourExtractor() {
       color: '#e2e8f0',
       fontFamily: "'Courier New', Courier, monospace",
     }}>
-      {/* Header */}
+
+      {/* ── Header ── */}
       <header style={{
         background: 'rgba(15,23,42,0.85)', backdropFilter: 'blur(8px)',
         borderBottom: '1px solid #1e3a5f', padding: '16px 32px',
@@ -114,12 +135,13 @@ export default function LiDARContourExtractor() {
         </div>
       </header>
 
-      {/* Main grid */}
+      {/* ── Main grid ── */}
       <div style={{
         display: 'grid', gridTemplateColumns: '300px 1fr',
         gap: 20, padding: 24, maxWidth: 1400, margin: '0 auto',
       }}>
-        {/* Left column */}
+
+        {/* ── Left column ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <UploadPanel
             file={file}
@@ -147,14 +169,44 @@ export default function LiDARContourExtractor() {
           )}
         </div>
 
-        {/* Right column */}
+        {/* ── Right column ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <VisualizationPanel
-            canvasRef={canvasRef}
-            viewMode={viewMode}
-            onViewModeChange={setViewMode}
-            hasResults={!!results}
-          />
+
+          {/* 2D / 3D Tab switcher */}
+          <div style={{
+            display: 'flex', gap: 8,
+            borderBottom: '1px solid #1e3a5f',
+            paddingBottom: 12,
+          }}>
+            <button
+              style={tabStyle(viewDimension === '2d')}
+              onClick={() => setViewDimension('2d')}
+            >
+              📐 2D View
+            </button>
+            <button
+              style={tabStyle(viewDimension === '3d')}
+              onClick={() => setViewDimension('3d')}
+            >
+              🧊 3D View (Three.js)
+            </button>
+          </div>
+
+          {/* Conditionally render 2D or 3D panel */}
+          {viewDimension === '2d' ? (
+            <VisualizationPanel
+              canvasRef={canvasRef}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              hasResults={!!results}
+            />
+          ) : (
+            <ThreeDPanel
+              points={points}
+              contour={currentContour}
+            />
+          )}
+
           <AlgorithmCard />
         </div>
       </div>
