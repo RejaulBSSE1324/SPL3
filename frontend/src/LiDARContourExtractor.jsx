@@ -13,7 +13,6 @@ import { ThreeDPanel }             from './components/ThreeDPanel';
 import { AlgorithmCard }           from './components/AlgorithmCard';
 import { ErrorToast }              from './components/ui/ErrorToast';
 
-// ── Tab button style ────────────────────────────────────────────────────────
 const tabStyle = (active) => ({
   padding: '8px 20px',
   border: 'none',
@@ -35,8 +34,9 @@ export default function LiDARContourExtractor() {
   const [points,           setPoints]           = useState([]);
   const [results,          setResults]          = useState(null);
   const [selectedBuilding, setSelectedBuilding] = useState(0);
-  const [viewMode,         setViewMode]         = useState('2d');   // 2D canvas overlay mode
-  const [viewDimension,    setViewDimension]    = useState('2d');   // '2d' | '3d' tab
+  const [viewMode,         setViewMode]         = useState('2d');
+  const [viewDimension,    setViewDimension]    = useState('2d');  // '2d' | '3d'
+  const [lasMetadata,      setLasMetadata]      = useState(null);
 
   // ── Refs ───────────────────────────────────────────────────────────────
   const canvasRef     = useRef(null);
@@ -48,21 +48,29 @@ export default function LiDARContourExtractor() {
     uploadFile, processPoints, exportContour,
   } = useApi();
 
-  // ── VisualizationManager init (2D) ─────────────────────────────────────
+  // ── VisualizationManager init ──────────────────────────────────────────
+  // canvasRef.current is always mounted (never removed from DOM),
+  // so this runs exactly once and the ref stays valid forever.
   useEffect(() => {
     if (canvasRef.current && !vizManagerRef.current) {
       vizManagerRef.current = new VisualizationManager(canvasRef.current);
     }
   }, []);
 
-  // ── Re-render 2D canvas on state change ───────────────────────────────
+  // ── Re-render 2D canvas whenever relevant state changes ────────────────
+  // This now also fires when switching BACK to 2D (viewDimension changes),
+  // which redraws onto the canvas that was never unmounted.
   useEffect(() => {
-    if (viewDimension !== '2d') return;
     const vm = vizManagerRef.current;
     if (!vm || points.length === 0) return;
-    const contour = results?.buildings?.[selectedBuilding]?.contour ?? [];
-    vm.render(points, contour, viewMode);
+    const building = results?.buildings?.[selectedBuilding];
+    const contour  = building?.contour  ?? [];
+    const area     = building?.area_m2  ?? null;  // ← pass area to renderer
+    vm.render(points, contour, viewMode, area);
   }, [points, results, selectedBuilding, viewMode, viewDimension]);
+  //                                                 ↑
+  // viewDimension in the dependency array means:
+  // switching back to 2D triggers a fresh render automatically.
 
   // ── Handlers ───────────────────────────────────────────────────────────
   const handleFileSelected = async (e) => {
@@ -70,8 +78,12 @@ export default function LiDARContourExtractor() {
     if (!f) return;
     setFile(f);
     setResults(null);
+    setLasMetadata(null);
     const data = await uploadFile(f);
-    if (data) setPoints(data.points);
+    if (data) {
+      setPoints(data.points);
+      if (data.las_metadata) setLasMetadata(data.las_metadata);
+    }
   };
 
   const handleProcess = async () => {
@@ -148,6 +160,7 @@ export default function LiDARContourExtractor() {
             pointCount={points.length}
             loading={loading}
             onFileSelected={handleFileSelected}
+            lasMetadata={lasMetadata}
           />
           <ProcessPanel
             hasPoints={points.length > 0}
@@ -178,40 +191,44 @@ export default function LiDARContourExtractor() {
             borderBottom: '1px solid #1e3a5f',
             paddingBottom: 12,
           }}>
-            <button
-              style={tabStyle(viewDimension === '2d')}
-              onClick={() => setViewDimension('2d')}
-            >
+            <button style={tabStyle(viewDimension === '2d')} onClick={() => setViewDimension('2d')}>
               📐 2D View
             </button>
-            <button
-              style={tabStyle(viewDimension === '3d')}
-              onClick={() => setViewDimension('3d')}
-            >
+            <button style={tabStyle(viewDimension === '3d')} onClick={() => setViewDimension('3d')}>
               🧊 3D View (Three.js)
             </button>
           </div>
 
-          {/* Conditionally render 2D or 3D panel */}
-          {viewDimension === '2d' ? (
+          {/*
+            ── KEY FIX ──────────────────────────────────────────────────────
+            Both panels stay mounted in the DOM at all times.
+            We use CSS display:block / display:none to show/hide them.
+            This means:
+              - The 2D canvas ref NEVER becomes stale
+              - The Three.js scene NEVER loses its WebGL context
+              - Switching tabs is instant with no re-initialisation cost
+            ─────────────────────────────────────────────────────────────────
+          */}
+          <div style={{ display: viewDimension === '2d' ? 'block' : 'none' }}>
             <VisualizationPanel
               canvasRef={canvasRef}
               viewMode={viewMode}
               onViewModeChange={setViewMode}
               hasResults={!!results}
             />
-          ) : (
+          </div>
+
+          <div style={{ display: viewDimension === '3d' ? 'block' : 'none' }}>
             <ThreeDPanel
               points={points}
               contour={currentContour}
             />
-          )}
+          </div>
 
           <AlgorithmCard />
         </div>
       </div>
 
-      {/* Error notification */}
       <ErrorToast message={error} onDismiss={clearError} />
 
       <style>{`
