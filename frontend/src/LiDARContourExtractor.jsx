@@ -225,7 +225,7 @@ export default function LiDARContourExtractor() {
             />
           </div>
 
-          <AlgorithmCard />
+          {/*<AlgorithmCard /> */}
         </div>
       </div>
 
