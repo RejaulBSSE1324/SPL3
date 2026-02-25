@@ -10,7 +10,6 @@ import { BuildingSelectorPanel, BuildingStatsPanel } from './components/panels/B
 import { ExportPanel }             from './components/panels/ExportPanel';
 import { VisualizationPanel }      from './components/VisualizationPanel';
 import { ThreeDPanel }             from './components/ThreeDPanel';
-import { AlgorithmCard }           from './components/AlgorithmCard';
 import { ErrorToast }              from './components/ui/ErrorToast';
 
 const tabStyle = (active) => ({
@@ -225,7 +224,6 @@ export default function LiDARContourExtractor() {
             />
           </div>
 
-          <AlgorithmCard />
         </div>
       </div>
 
